@@ -1,5 +1,5 @@
 # Binaries
-mantis
+/mantis
 *.exe
 *.exe~
 *.dll
