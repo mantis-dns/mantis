@@ -9,6 +9,7 @@ import (
 
 	"github.com/mantis-dns/mantis/internal/config"
 	mantisdns "github.com/mantis-dns/mantis/internal/dns"
+	"github.com/mantis-dns/mantis/internal/event"
 	"github.com/mantis-dns/mantis/internal/gravity"
 	"github.com/mantis-dns/mantis/internal/pipeline"
 	"github.com/mantis-dns/mantis/internal/resolver"
@@ -36,12 +37,13 @@ func main() {
 	}
 
 	// Build components.
+	eventBus := event.NewBus()
 	dnsCache := resolver.NewDNSCache(cfg.DNS.CacheSize)
 	forwarder := resolver.NewForwarder(cfg.DNS.Upstreams, logger)
 	gravityEngine := gravity.NewEngine()
 
 	// Build pipeline: cache -> gravity -> client rules -> upstream.
-	chain := pipeline.NewChain(
+	chain := pipeline.NewChain(eventBus,
 		pipeline.NewCacheHandler(dnsCache),
 		pipeline.NewGravityHandler(gravityEngine),
 		pipeline.NewClientRuleHandler(),
