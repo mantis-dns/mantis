@@ -1,0 +1,21 @@
+services:
+  mantis:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mantis
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "8080:8080"
+    volumes:
+      - mantis-data:/data
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - MANTIS_DNS_LISTEN_ADDRESS=0.0.0.0:53
+      - MANTIS_API_LISTEN_ADDRESS=0.0.0.0:8080
+
+volumes:
+  mantis-data:
