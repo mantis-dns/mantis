@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -10,7 +9,9 @@ import (
 
 	"github.com/mantis-dns/mantis/internal/config"
 	mantisdns "github.com/mantis-dns/mantis/internal/dns"
-	"github.com/mantis-dns/mantis/internal/domain"
+	"github.com/mantis-dns/mantis/internal/gravity"
+	"github.com/mantis-dns/mantis/internal/pipeline"
+	"github.com/mantis-dns/mantis/internal/resolver"
 	"github.com/rs/zerolog"
 )
 
@@ -34,14 +35,28 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to load config")
 	}
 
-	// Stub resolver until pipeline is wired (Task 9).
-	resolver := &stubResolver{}
+	// Build components.
+	dnsCache := resolver.NewDNSCache(cfg.DNS.CacheSize)
+	forwarder := resolver.NewForwarder(cfg.DNS.Upstreams, logger)
+	gravityEngine := gravity.NewEngine()
 
-	dnsServer := mantisdns.NewServer(cfg.DNS.ListenAddress, resolver, logger)
+	// Build pipeline: cache -> gravity -> client rules -> upstream.
+	chain := pipeline.NewChain(
+		pipeline.NewCacheHandler(dnsCache),
+		pipeline.NewGravityHandler(gravityEngine),
+		pipeline.NewClientRuleHandler(),
+		pipeline.NewUpstreamHandler(forwarder),
+	)
+
+	dnsServer := mantisdns.NewServer(cfg.DNS.ListenAddress, chain, logger)
 	if err := dnsServer.Start(); err != nil {
 		logger.Fatal().Err(err).Msg("failed to start DNS server")
 	}
-	logger.Info().Str("version", version).Msg("mantis started")
+	logger.Info().
+		Str("version", version).
+		Str("dns", cfg.DNS.ListenAddress).
+		Int("upstreams", len(cfg.DNS.Upstreams)).
+		Msg("mantis started")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -49,11 +64,5 @@ func main() {
 
 	logger.Info().Msg("shutting down")
 	dnsServer.Stop()
-}
-
-// stubResolver returns SERVFAIL for all queries.
-type stubResolver struct{}
-
-func (s *stubResolver) Resolve(_ context.Context, _ *domain.Query) (*domain.Response, error) {
-	return nil, fmt.Errorf("not implemented")
+	dnsCache.Close()
 }
