@@ -1,4 +1,33 @@
+import { useState, useEffect } from 'react'
+import { useSettings, useUpdateSettings } from '../api/settings'
+
 export default function Settings() {
+  const { data: settings } = useSettings()
+  const updateMutation = useUpdateSettings()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (settings) {
+      const map: Record<string, string> = {}
+      for (const s of settings) {
+        map[s.key] = s.value
+      }
+      setValues(map)
+    }
+  }, [settings])
+
+  const handleSave = () => {
+    updateMutation.mutate(values, {
+      onSuccess: () => {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      },
+    })
+  }
+
+  const set = (key: string, value: string) => setValues((v) => ({ ...v, [key]: value }))
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
@@ -9,14 +38,18 @@ export default function Settings() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Upstream DNS Servers</label>
             <input
-              type="text"
-              defaultValue="1.1.1.1, 8.8.8.8"
+              value={values['dns.upstreams'] ?? '1.1.1.1, 8.8.8.8'}
+              onChange={(e) => set('dns.upstreams', e.target.value)}
               className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
             />
           </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1">Blocking Mode</label>
-            <select className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500">
+            <select
+              value={values['dns.blocking_mode'] ?? 'null'}
+              onChange={(e) => set('dns.blocking_mode', e.target.value)}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
+            >
               <option value="null">Null (0.0.0.0)</option>
               <option value="nxdomain">NXDOMAIN</option>
             </select>
@@ -29,7 +62,11 @@ export default function Settings() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-slate-400 mb-1">Log Level</label>
-            <select className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500">
+            <select
+              value={values['logging.level'] ?? 'info'}
+              onChange={(e) => set('logging.level', e.target.value)}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
+            >
               <option value="debug">Debug</option>
               <option value="info">Info</option>
               <option value="warn">Warn</option>
@@ -39,9 +76,12 @@ export default function Settings() {
         </div>
       </div>
 
-      <button className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
-        Save Settings
-      </button>
+      <div className="flex items-center gap-3">
+        <button onClick={handleSave} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
+          Save Settings
+        </button>
+        {saved && <span className="text-sm text-emerald-400">Saved!</span>}
+      </div>
     </div>
   )
 }

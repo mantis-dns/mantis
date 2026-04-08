@@ -1,20 +1,17 @@
-interface Column<T> {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface Column {
   key: string
   header: string
-  render?: (row: T) => React.ReactNode
+  render?: (row: any) => React.ReactNode
 }
 
-interface DataTableProps<T> {
-  columns: Column<T>[]
-  data: T[]
+interface DataTableProps {
+  columns: Column[]
+  data: any[]
   loading?: boolean
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
-  columns,
-  data,
-  loading,
-}: DataTableProps<T>) {
+export default function DataTable({ columns, data, loading }: DataTableProps) {
   if (loading) {
     return (
       <div className="bg-slate-900 rounded-xl border border-slate-800 p-8">
