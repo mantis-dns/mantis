@@ -5,11 +5,15 @@ go 1.26.1
 require (
 	codeberg.org/miekg/dns v0.6.73
 	github.com/cockroachdb/pebble/v2 v2.1.4
+	github.com/go-chi/chi/v5 v5.2.5
+	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/go-immutable-radix/v2 v2.1.0
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/rs/zerolog v1.35.0
 	golang.org/x/crypto v0.48.0
+	golang.org/x/time v0.15.0
 )
 
 require (
