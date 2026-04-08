@@ -6,6 +6,7 @@ import (
 	"github.com/mantis-dns/mantis/internal/domain"
 	"github.com/mantis-dns/mantis/internal/event"
 	"github.com/mantis-dns/mantis/internal/gravity"
+	"github.com/mantis-dns/mantis/internal/stats"
 	"github.com/rs/zerolog"
 )
 
@@ -18,6 +19,7 @@ type Dependencies struct {
 	QueryLog   domain.QueryLogRepository
 	Leases     domain.LeaseRepository
 	Gravity    *gravity.Engine
+	Stats      *stats.Aggregator
 	EventBus   *event.Bus
 	Logger     zerolog.Logger
 	Version    string
@@ -35,7 +37,7 @@ func NewRouter(deps *Dependencies) chi.Router {
 	r.Use(SecurityHeaders)
 
 	auth := &AuthHandler{sessions: deps.Sessions, settings: deps.Settings}
-	stats := &StatsHandler{}
+	statsH := &StatsHandler{aggregator: deps.Stats}
 	queries := &QueryHandler{queryLog: deps.QueryLog, bus: deps.EventBus}
 	blocklists := &BlocklistHandler{repo: deps.Blocklists}
 	rules := &RulesHandler{repo: deps.Rules, gravity: deps.Gravity}
@@ -56,10 +58,10 @@ func NewRouter(deps *Dependencies) chi.Router {
 
 			r.Post("/auth/logout", auth.Logout)
 
-			r.Get("/stats/summary", stats.Summary)
-			r.Get("/stats/overtime", stats.Overtime)
-			r.Get("/stats/top-domains", stats.TopDomains)
-			r.Get("/stats/top-clients", stats.TopClients)
+			r.Get("/stats/summary", statsH.Summary)
+			r.Get("/stats/overtime", statsH.Overtime)
+			r.Get("/stats/top-domains", statsH.TopDomains)
+			r.Get("/stats/top-clients", statsH.TopClients)
 
 			r.Get("/queries", queries.List)
 			r.Get("/queries/stream", queries.Stream)
