@@ -1,0 +1,50 @@
+# Mantis Configuration
+# All settings can be overridden with MANTIS_ environment variables
+# Example: dns.listen_address -> MANTIS_DNS_LISTEN_ADDRESS
+
+[dns]
+listen_address = "0.0.0.0:53"
+upstreams = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
+resolver_mode = "forward"  # "forward" or "recursive"
+cache_size = 10000
+blocking_mode = "null"     # "null" (0.0.0.0) or "nxdomain"
+
+[doh]
+enabled = false
+listen_address = "0.0.0.0:443"
+
+[dot]
+enabled = false
+listen_address = "0.0.0.0:853"
+
+[tls]
+cert_file = ""
+key_file = ""
+acme_enabled = false
+acme_domain = ""
+acme_email = ""
+
+[dhcp]
+enabled = false
+interface = ""
+range_start = ""
+range_end = ""
+lease_duration = "24h"
+gateway = ""
+subnet_mask = "255.255.255.0"
+
+[api]
+listen_address = "0.0.0.0:8080"
+rate_limit = 60  # requests per minute per session
+
+[storage]
+data_dir = "/var/lib/mantis"
+
+[logging]
+level = "info"        # debug, info, warn, error
+query_log = "all"     # all, blocked, none
+retention_days = 30
+privacy_mode = false
+
+[gravity]
+update_interval = "24h"
