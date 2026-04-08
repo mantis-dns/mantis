@@ -11,6 +11,8 @@ build:
 
 build-frontend:
 	cd web && npm ci && npm run build
+	rm -rf internal/web/dist
+	cp -r web/dist internal/web/dist
 
 build-all: build-frontend
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o dist/mantis-linux-amd64 ./cmd/mantis

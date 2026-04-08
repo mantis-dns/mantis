@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --color-emerald-primary: #10B981;
+  --color-surface-dark: #1E293B;
+  --color-bg-dark: #0F172A;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
