@@ -5,8 +5,11 @@ go 1.26.1
 require (
 	codeberg.org/miekg/dns v0.6.73
 	github.com/cockroachdb/pebble/v2 v2.1.4
+	github.com/hashicorp/go-immutable-radix/v2 v2.1.0
+	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/rs/zerolog v1.35.0
+	golang.org/x/crypto v0.48.0
 )
 
 require (
@@ -24,8 +27,8 @@ require (
 	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.5-0.20231225225746-43d5d4cd4e0e // indirect
-	github.com/hashicorp/go-immutable-radix/v2 v2.1.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -33,14 +36,15 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/minlz v1.0.1-0.20250507153514-87eb42fe8882 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
