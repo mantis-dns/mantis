@@ -2,7 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/mantis-dns/mantis/internal/domain"
 )
@@ -54,6 +59,10 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for key, value := range updates {
+		if err := validateSettingValue(key, value); err != nil {
+			Error(w, "VALIDATION_ERROR", err.Error(), http.StatusBadRequest)
+			return
+		}
 		if err := h.repo.Set(r.Context(), key, value); err != nil {
 			Error(w, "INTERNAL_ERROR", "failed to set "+key, http.StatusInternalServerError)
 			return
@@ -61,4 +70,49 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Success(w, map[string]string{"status": "updated"})
+}
+
+// validateSettingValue validates the value for a given setting key.
+func validateSettingValue(key, value string) error {
+	switch key {
+	case "dns.upstreams":
+		// Comma-separated list of valid IPs or hostnames.
+		for _, upstream := range strings.Split(value, ",") {
+			upstream = strings.TrimSpace(upstream)
+			if upstream == "" {
+				continue
+			}
+			host, _, err := net.SplitHostPort(upstream)
+			if err != nil {
+				host = upstream
+			}
+			if ip := net.ParseIP(host); ip != nil {
+				continue
+			}
+			// Allow hostnames as well.
+			if _, err := net.LookupHost(host); err != nil {
+				return fmt.Errorf("invalid upstream %q: not a valid IP or resolvable hostname", upstream)
+			}
+		}
+	case "dns.cache_size":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 0 {
+			return fmt.Errorf("dns.cache_size must be a non-negative integer")
+		}
+	case "dns.resolver_mode":
+		valid := map[string]bool{"recursive": true, "forwarding": true}
+		if !valid[value] {
+			return fmt.Errorf("dns.resolver_mode must be 'recursive' or 'forwarding'")
+		}
+	case "logging.retention_days":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 0 {
+			return fmt.Errorf("logging.retention_days must be a non-negative integer")
+		}
+	case "gravity.update_interval":
+		if _, err := time.ParseDuration(value); err != nil {
+			return fmt.Errorf("gravity.update_interval must be a valid Go duration (e.g. 24h, 30m)")
+		}
+	}
+	return nil
 }
