@@ -1,12 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/mantis-dns/mantis/internal/domain"
 	"github.com/mantis-dns/mantis/internal/event"
 )
@@ -52,16 +54,6 @@ func (h *QueryHandler) List(w http.ResponseWriter, r *http.Request) {
 	Paginated(w, entries, page, perPage, total)
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true
-		}
-		return isSameOrigin(origin, trustedAPIHost)
-	},
-}
-
 var trustedAPIHost string
 
 // SetTrustedAPIHost sets the trusted host for WebSocket origin checks.
@@ -76,32 +68,61 @@ func (h *QueryHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
+	origin := r.Header.Get("Origin")
+	if origin != "" && !isSameOrigin(origin, trustedAPIHost) {
+		Error(w, "FORBIDDEN", "origin not allowed", http.StatusForbidden)
 		return
 	}
 
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
+	if err != nil {
+		return
+	}
+	defer conn.CloseNow()
+
 	h.activeConns.Add(1)
 	defer h.activeConns.Add(-1)
-	defer conn.Close()
 
 	ch := h.bus.Subscribe(1000)
 	defer h.bus.Unsubscribe(ch)
+
+	ctx := r.Context()
+
+	// Mutex protects all concurrent writes to conn.
+	var mu sync.Mutex
+	done := make(chan struct{})
 
 	// Ping every 30s.
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			if conn.WriteMessage(websocket.PingMessage, nil) != nil {
+		for {
+			select {
+			case <-done:
 				return
+			case <-ticker.C:
+				mu.Lock()
+				err := conn.Ping(ctx)
+				mu.Unlock()
+				if err != nil {
+					return
+				}
 			}
 		}
 	}()
 
 	for ev := range ch {
-		if err := conn.WriteJSON(ev); err != nil {
+		data, err := json.Marshal(ev)
+		if err != nil {
+			continue
+		}
+		mu.Lock()
+		err = conn.Write(ctx, websocket.MessageText, data)
+		mu.Unlock()
+		if err != nil {
 			break
 		}
 	}
+
+	close(done)
 }
