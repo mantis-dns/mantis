@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -50,6 +51,8 @@ func (h *BlocklistHandler) Create(w http.ResponseWriter, r *http.Request) {
 	src.ID = uuid.New().String()
 	src.Enabled = true
 	src.LastStatus = domain.StatusPending
+	src.DomainCount = 0
+	src.LastUpdated = time.Time{}
 
 	if err := h.repo.Create(r.Context(), &src); err != nil {
 		Error(w, "INTERNAL_ERROR", "failed to create blocklist", http.StatusInternalServerError)
@@ -81,6 +84,10 @@ func (h *BlocklistHandler) Update(w http.ResponseWriter, r *http.Request) {
 		existing.Name = updates.Name
 	}
 	if updates.URL != "" {
+		if err := validateBlocklistURL(updates.URL); err != nil {
+			Error(w, "VALIDATION_ERROR", err.Error(), http.StatusBadRequest)
+			return
+		}
 		existing.URL = updates.URL
 	}
 	existing.Enabled = updates.Enabled

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -24,12 +25,52 @@ type Downloader struct {
 	logger zerolog.Logger
 }
 
-// NewDownloader creates a downloader with a 30s timeout.
+// NewDownloader creates a downloader with SSRF protections.
 func NewDownloader(logger zerolog.Logger) *Downloader {
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := dialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			// Reject connections to private/loopback addresses.
+			if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+				if isPrivateIP(tcpAddr.IP) {
+					conn.Close()
+					return nil, fmt.Errorf("connection to private IP %s blocked", tcpAddr.IP)
+				}
+			}
+			return conn, nil
+		},
+	}
+
 	return &Downloader{
-		client: &http.Client{Timeout: 30 * time.Second},
+		client: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: transport,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		logger: logger.With().Str("component", "downloader").Logger(),
 	}
+}
+
+// isPrivateIP returns true if the IP is a private, loopback, or link-local address.
+func isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+		return true
+	}
+	// IPv4-mapped IPv6 addresses (e.g., ::ffff:127.0.0.1).
+	if ip4 := ip.To4(); ip4 != nil {
+		return ip4.IsLoopback() || ip4.IsPrivate() || ip4.IsLinkLocalUnicast()
+	}
+	return false
 }
 
 // DownloadAll fetches all enabled blocklist sources with max concurrency.
