@@ -126,7 +126,7 @@ func (s *Server) handleRequest(conn net.PacketConn, peer net.Addr, msg *dhcpv4.D
 		return
 	}
 
-	hostname := msg.HostName()
+	hostname := sanitizeHostname(msg.HostName())
 
 	lease := &domain.DhcpLease{
 		MAC:      mac,
@@ -179,4 +179,19 @@ func parseSubnet(mask string) net.IPMask {
 		return net.CIDRMask(24, 32)
 	}
 	return net.IPv4Mask(ip[0], ip[1], ip[2], ip[3])
+}
+
+// sanitizeHostname strips control characters and caps length per RFC 952.
+func sanitizeHostname(h string) string {
+	if len(h) > 253 {
+		h = h[:253]
+	}
+	var clean []byte
+	for i := 0; i < len(h); i++ {
+		c := h[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' {
+			clean = append(clean, c)
+		}
+	}
+	return string(clean)
 }

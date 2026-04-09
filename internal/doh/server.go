@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"time"
 
 	"github.com/mantis-dns/mantis/internal/domain"
 	"github.com/rs/zerolog"
@@ -24,9 +25,13 @@ func NewServer(addr string, resolver domain.Resolver, tlsCfg *tls.Config, logger
 
 	return &Server{
 		httpServer: &http.Server{
-			Addr:      addr,
-			Handler:   mux,
-			TLSConfig: tlsCfg,
+			Addr:              addr,
+			Handler:           mux,
+			TLSConfig:         tlsCfg,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      10 * time.Second,
+			IdleTimeout:       120 * time.Second,
 		},
 		logger: logger.With().Str("component", "doh").Logger(),
 	}

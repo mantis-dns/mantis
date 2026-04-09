@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	mdns "codeberg.org/miekg/dns"
 	"codeberg.org/miekg/dns/dnsutil"
@@ -71,10 +72,16 @@ func (s *Server) acceptLoop() {
 	}
 }
 
+const dotIdleTimeout = 30 * time.Second
+const dotReadTimeout = 10 * time.Second
+
 func (s *Server) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	for {
+		// Set idle timeout for the next message.
+		conn.SetReadDeadline(time.Now().Add(dotIdleTimeout))
+
 		// Read 2-byte length prefix (RFC 7858).
 		var length uint16
 		if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
@@ -83,6 +90,9 @@ func (s *Server) handleConn(conn net.Conn) {
 			}
 			return
 		}
+
+		// Tighter deadline for reading the actual message body.
+		conn.SetReadDeadline(time.Now().Add(dotReadTimeout))
 
 		buf := make([]byte, length)
 		if _, err := io.ReadFull(conn, buf); err != nil {

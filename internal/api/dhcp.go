@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"time"
 
@@ -36,6 +37,14 @@ func (h *DHCPHandler) CreateStaticLease(w http.ResponseWriter, r *http.Request) 
 	}
 	if lease.MAC == "" || lease.IP == "" {
 		Error(w, "VALIDATION_ERROR", "mac and ip required", http.StatusBadRequest)
+		return
+	}
+	if _, err := net.ParseMAC(lease.MAC); err != nil {
+		Error(w, "VALIDATION_ERROR", "invalid MAC address format", http.StatusBadRequest)
+		return
+	}
+	if net.ParseIP(lease.IP) == nil {
+		Error(w, "VALIDATION_ERROR", "invalid IP address format", http.StatusBadRequest)
 		return
 	}
 

@@ -2,7 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -36,6 +40,10 @@ func (h *BlocklistHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if src.Name == "" || src.URL == "" {
 		Error(w, "VALIDATION_ERROR", "name and url required", http.StatusBadRequest)
+		return
+	}
+	if err := validateBlocklistURL(src.URL); err != nil {
+		Error(w, "VALIDATION_ERROR", err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -96,4 +104,24 @@ func (h *BlocklistHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	Success(w, map[string]string{"status": "deleted"})
+}
+
+// validateBlocklistURL ensures the URL is HTTP(S) and not targeting private/loopback addresses.
+func validateBlocklistURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("URL scheme must be http or https")
+	}
+	host := u.Hostname()
+	ip := net.ParseIP(host)
+	if ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("URL must not target private/loopback addresses")
+		}
+	}
+	return nil
 }

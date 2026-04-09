@@ -103,24 +103,31 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		h.sessions.DeleteSession(r.Context(), cookie.Value)
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:   "session",
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteStrictMode,
 	})
 	Success(w, map[string]string{"status": "logged out"})
 }
 
 func generateToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	hash := sha256.Sum256(b)
 	return hex.EncodeToString(hash[:])
 }
 
 func generateAPIKeyToken() (token, hash string) {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	token = hex.EncodeToString(b)
 	h := sha256.Sum256([]byte(token))
 	hash = hex.EncodeToString(h[:])

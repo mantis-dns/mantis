@@ -3,9 +3,11 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mantis-dns/mantis/internal/domain"
 	"golang.org/x/time/rate"
@@ -42,15 +44,55 @@ func AuthMiddleware(sessions domain.SessionRepository) func(http.Handler) http.H
 	}
 }
 
-// RateLimitMiddleware limits requests per session/IP.
+// rateLimiterEntry tracks a limiter and its last access time.
+type rateLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+// RateLimitMiddleware limits requests per client IP with TTL eviction.
 func RateLimitMiddleware(rps int) func(http.Handler) http.Handler {
-	limiters := &sync.Map{}
+	var mu sync.Mutex
+	limiters := make(map[string]*rateLimiterEntry)
+
+	// Evict stale entries every 5 minutes.
+	go func() {
+		for range time.Tick(5 * time.Minute) {
+			mu.Lock()
+			cutoff := time.Now().Add(-10 * time.Minute)
+			for k, v := range limiters {
+				if v.lastSeen.Before(cutoff) {
+					delete(limiters, k)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := clientIP(r)
-			val, _ := limiters.LoadOrStore(key, rate.NewLimiter(rate.Limit(rps)/60, rps))
-			limiter := val.(*rate.Limiter)
-			if !limiter.Allow() {
+
+			mu.Lock()
+			entry, ok := limiters[key]
+			if !ok {
+				entry = &rateLimiterEntry{
+					limiter: rate.NewLimiter(rate.Limit(rps)/60, rps),
+				}
+				limiters[key] = entry
+			}
+			entry.lastSeen = time.Now()
+
+			// Cap total tracked IPs to prevent memory exhaustion.
+			if len(limiters) > 10000 {
+				mu.Unlock()
+				next.ServeHTTP(w, r)
+				return
+			}
+			mu.Unlock()
+
+			if !entry.limiter.Allow() {
+				w.Header().Set("Retry-After", "60")
 				Error(w, "RATE_LIMITED", "rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
@@ -70,13 +112,16 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// CORSMiddleware handles CORS.
+// CORSMiddleware handles CORS with same-origin enforcement.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin != "" && isSameHost(origin, r.Host) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Api-Key")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -85,14 +130,29 @@ func CORSMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func isSameHost(origin, host string) bool {
+	// Strip scheme from origin.
+	o := origin
+	o = strings.TrimPrefix(o, "http://")
+	o = strings.TrimPrefix(o, "https://")
+	o = strings.TrimSuffix(o, "/")
+	// Compare host portions (ignoring port differences).
+	oHost, _, _ := net.SplitHostPort(o)
+	if oHost == "" {
+		oHost = o
+	}
+	rHost, _, _ := net.SplitHostPort(host)
+	if rHost == "" {
+		rHost = host
+	}
+	return oHost == rHost
+}
+
+// clientIP extracts client IP from RemoteAddr only (no XFF trust without proxy config).
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.SplitN(xff, ",", 2)
-		return strings.TrimSpace(parts[0])
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
 	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	ip, _, _ := strings.Cut(r.RemoteAddr, ":")
-	return ip
+	return host
 }

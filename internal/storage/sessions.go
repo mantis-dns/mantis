@@ -41,6 +41,13 @@ func (s *SessionStore) GetSession(_ context.Context, token string) (*domain.Sess
 	if err := json.Unmarshal(val, &session); err != nil {
 		return nil, err
 	}
+
+	// Enforce session expiry.
+	if time.Now().After(session.ExpiresAt) {
+		s.db.Delete(SessionKey(token), pebble.Sync)
+		return nil, domain.ErrNotFound
+	}
+
 	return &session, nil
 }
 
