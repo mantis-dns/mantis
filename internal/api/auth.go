@@ -29,8 +29,8 @@ type loginRequest struct {
 
 // Setup creates the admin account (first-run only).
 func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
-	existing, _ := h.settings.Get(r.Context(), "auth.password_hash")
-	if existing != "" {
+	setupDone, _ := h.settings.Get(r.Context(), "auth.setup_completed")
+	if setupDone == "true" {
 		Error(w, "FORBIDDEN", "setup already completed", http.StatusForbidden)
 		return
 	}
@@ -52,6 +52,7 @@ func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.settings.Set(r.Context(), "auth.password_hash", string(hash))
+	h.settings.Set(r.Context(), "auth.setup_completed", "true")
 	Success(w, map[string]string{"status": "setup complete"})
 }
 
