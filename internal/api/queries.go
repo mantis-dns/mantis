@@ -58,8 +58,15 @@ var upgrader = websocket.Upgrader{
 		if origin == "" {
 			return true
 		}
-		return isSameHost(origin, r.Host)
+		return isSameOrigin(origin, trustedAPIHost)
 	},
+}
+
+var trustedAPIHost string
+
+// SetTrustedAPIHost sets the trusted host for WebSocket origin checks.
+func SetTrustedAPIHost(host string) {
+	trustedAPIHost = host
 }
 
 // Stream upgrades to WebSocket for live query streaming.

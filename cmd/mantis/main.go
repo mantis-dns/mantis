@@ -115,6 +115,7 @@ func main() {
 		Logger:     logger,
 		Version:    version,
 		RateLimit:  cfg.API.RateLimit,
+		APIHost:    cfg.API.ListenAddress,
 	})
 
 	// Mount SPA at root.

@@ -24,6 +24,7 @@ type Dependencies struct {
 	Logger     zerolog.Logger
 	Version    string
 	RateLimit  int
+	APIHost    string
 }
 
 // NewRouter creates the chi router with all API routes.
@@ -33,12 +34,13 @@ func NewRouter(deps *Dependencies) chi.Router {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-	r.Use(CORSMiddleware)
+	r.Use(CORSMiddleware(deps.APIHost))
 	r.Use(SecurityHeaders)
 
 	auth := &AuthHandler{sessions: deps.Sessions, settings: deps.Settings}
 	statsH := &StatsHandler{aggregator: deps.Stats}
 	queries := &QueryHandler{queryLog: deps.QueryLog, bus: deps.EventBus}
+	SetTrustedAPIHost(deps.APIHost)
 	blocklists := &BlocklistHandler{repo: deps.Blocklists}
 	rules := &RulesHandler{repo: deps.Rules, gravity: deps.Gravity}
 	dhcpH := &DHCPHandler{leases: deps.Leases}

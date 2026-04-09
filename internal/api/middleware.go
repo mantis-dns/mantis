@@ -76,19 +76,16 @@ func RateLimitMiddleware(rps int) func(http.Handler) http.Handler {
 			mu.Lock()
 			entry, ok := limiters[key]
 			if !ok {
+				// Cap total tracked IPs to prevent memory exhaustion.
+				if len(limiters) >= 10000 {
+					evictOldestLocked(limiters)
+				}
 				entry = &rateLimiterEntry{
 					limiter: rate.NewLimiter(rate.Limit(rps)/60, rps),
 				}
 				limiters[key] = entry
 			}
 			entry.lastSeen = time.Now()
-
-			// Cap total tracked IPs to prevent memory exhaustion.
-			if len(limiters) > 10000 {
-				mu.Unlock()
-				next.ServeHTTP(w, r)
-				return
-			}
 			mu.Unlock()
 
 			if !entry.limiter.Allow() {
@@ -101,36 +98,57 @@ func RateLimitMiddleware(rps int) func(http.Handler) http.Handler {
 	}
 }
 
+// evictOldestLocked removes the least-recently-seen entry from the map.
+// Caller must hold mu.
+func evictOldestLocked(limiters map[string]*rateLimiterEntry) {
+	var oldestKey string
+	var oldestTime time.Time
+	first := true
+	for k, v := range limiters {
+		if first || v.lastSeen.Before(oldestTime) {
+			oldestKey = k
+			oldestTime = v.lastSeen
+			first = false
+		}
+	}
+	if oldestKey != "" {
+		delete(limiters, oldestKey)
+	}
+}
+
 // SecurityHeaders adds security headers to responses.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
 
 // CORSMiddleware handles CORS with same-origin enforcement.
-func CORSMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" && isSameHost(origin, r.Host) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Api-Key")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func CORSMiddleware(trustedHost string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && isSameOrigin(origin, trustedHost) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Api-Key")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
-func isSameHost(origin, host string) bool {
+func isSameOrigin(origin, trustedHost string) bool {
 	// Strip scheme from origin.
 	o := origin
 	o = strings.TrimPrefix(o, "http://")
@@ -141,11 +159,11 @@ func isSameHost(origin, host string) bool {
 	if oHost == "" {
 		oHost = o
 	}
-	rHost, _, _ := net.SplitHostPort(host)
-	if rHost == "" {
-		rHost = host
+	tHost, _, _ := net.SplitHostPort(trustedHost)
+	if tHost == "" {
+		tHost = trustedHost
 	}
-	return oHost == rHost
+	return oHost == tHost
 }
 
 // clientIP extracts client IP from RemoteAddr only (no XFF trust without proxy config).
