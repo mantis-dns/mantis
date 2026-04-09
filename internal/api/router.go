@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mantis-dns/mantis/internal/domain"
@@ -49,7 +51,9 @@ func NewRouter(deps *Dependencies) chi.Router {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes.
-		r.Post("/auth/setup", auth.Setup)
+		r.Post("/auth/setup", func(w http.ResponseWriter, r *http.Request) {
+			RateLimitMiddleware(deps.RateLimit)(http.HandlerFunc(auth.Setup)).ServeHTTP(w, r)
+		})
 		r.Post("/auth/login", auth.Login)
 		r.Get("/system/health", system.Health)
 
