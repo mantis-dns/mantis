@@ -5,21 +5,21 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@44694675825211faa026b3a33e688c6a60cee074 # v5
         with:
-          go-version: '1.26'
+          go-version: '1.24'
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e840197d9b7da38b05 # v4
         with:
           node-version: '22'
 
@@ -43,7 +43,9 @@ jobs:
           cd dist && sha256sum mantis-* > checksums.txt
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        permissions:
+          contents: write
+        uses: softprops/action-gh-release@07b9bc1c3ddb658d9c9a6e6c1b8c3e1e8e0e0e0e # v2
         with:
           files: |
             dist/mantis-*
