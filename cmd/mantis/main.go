@@ -27,12 +27,21 @@ var version = "dev"
 
 func main() {
 	showVersion := flag.Bool("version", false, "Print version and exit")
+	healthCheck := flag.Bool("health", false, "Run health check and exit")
 	configPath := flag.String("config", "", "Path to configuration file")
 	dataDir := flag.String("data-dir", "/var/lib/mantis", "Path to data directory")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("mantis version %s\n", version)
+		os.Exit(0)
+	}
+
+	if *healthCheck {
+		resp, err := http.Get("http://localhost:8080/api/v1/system/health")
+		if err != nil || resp.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 

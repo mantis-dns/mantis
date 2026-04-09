@@ -19,5 +19,6 @@ COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=backend /mantis /mantis
 EXPOSE 53/udp 53/tcp 67/udp 68/udp 443 853 8080
 VOLUME /data
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/mantis", "--health"]
 ENTRYPOINT ["/mantis"]
 CMD ["--config", "/data/config.toml", "--data-dir", "/data"]
